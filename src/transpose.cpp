@@ -74,6 +74,114 @@ static INLINE void prefetch(const floatType* A, const int lda)
    for(int i=0;i < blocking_micro_; ++i)
       _mm_prefetch((char*)(A + i * lda), _MM_HINT_T2);
 }
+
+#ifdef HPTT_ARCH_AVX512
+template <int betaIsZero, bool conjA>
+struct micro_kernel<double, betaIsZero, conjA>
+{
+    static void execute(const double* __restrict__ A, const size_t lda, double* __restrict__ B, const size_t ldb, const double alpha ,const double beta)
+    {
+       __m512i il = _mm512_set_epi64(0xd, 0xc, 0x9, 0x8, 0x5, 0x4, 0x1, 0x0);
+       __m512i ih = _mm512_set_epi64(0xf, 0xe, 0xb, 0xa, 0x7, 0x6, 0x3, 0x2);
+       __m512d reg_alpha = _mm512_set1_pd(alpha); // do not alter the content of B
+       __m512d reg_beta = _mm512_set1_pd(beta); // do not alter the content of B
+       //Load A
+       __m512d rowA0 = _mm512_loadu_pd((A +0*lda));
+       __m512d rowA1 = _mm512_loadu_pd((A +1*lda));
+       __m512d rowA2 = _mm512_loadu_pd((A +2*lda));
+       __m512d rowA3 = _mm512_loadu_pd((A +3*lda));
+       __m512d rowA4 = _mm512_loadu_pd((A +4*lda));
+       __m512d rowA5 = _mm512_loadu_pd((A +5*lda));
+       __m512d rowA6 = _mm512_loadu_pd((A +6*lda));
+       __m512d rowA7 = _mm512_loadu_pd((A +7*lda));
+
+       // 8x8 transpose micro kernel
+      __m512d r001 = _mm512_unpacklo_pd(rowA0, rowA1);
+      __m512d r023 = _mm512_unpacklo_pd(rowA2, rowA3);
+      __m512d r045 = _mm512_unpacklo_pd(rowA4, rowA5);
+      __m512d r067 = _mm512_unpacklo_pd(rowA6, rowA7);
+      __m512d r101 = _mm512_unpackhi_pd(rowA0, rowA1);
+      __m512d r123 = _mm512_unpackhi_pd(rowA2, rowA3);
+      __m512d r145 = _mm512_unpackhi_pd(rowA4, rowA5);
+      __m512d r167 = _mm512_unpackhi_pd(rowA6, rowA7);
+
+      __m512d r002 = _mm512_shuffle_f64x2(r001, r023, 0x44);
+      __m512d r402 = _mm512_shuffle_f64x2(r045, r067, 0x44);
+      __m512d r046 = _mm512_shuffle_f64x2(r001, r023, 0xee);
+      __m512d r446 = _mm512_shuffle_f64x2(r045, r067, 0xee);
+      __m512d r013 = _mm512_shuffle_f64x2(r101, r123, 0x44);
+      __m512d r413 = _mm512_shuffle_f64x2(r145, r167, 0x44);
+      __m512d r057 = _mm512_shuffle_f64x2(r101, r123, 0xee);
+      __m512d r457 = _mm512_shuffle_f64x2(r145, r167, 0xee);
+
+      rowA0 = _mm512_permutex2var_pd(r002, il, r402);
+      rowA4 = _mm512_permutex2var_pd(r046, il, r446);
+      rowA1 = _mm512_permutex2var_pd(r013, il, r413);
+      rowA5 = _mm512_permutex2var_pd(r057, il, r457);
+      rowA2 = _mm512_permutex2var_pd(r002, ih, r402);
+      rowA6 = _mm512_permutex2var_pd(r046, ih, r446);
+      rowA3 = _mm512_permutex2var_pd(r013, ih, r413);
+      rowA7 = _mm512_permutex2var_pd(r057, ih, r457);
+
+      rowA0 = _mm512_mul_pd(rowA0, reg_alpha);
+      rowA1 = _mm512_mul_pd(rowA1, reg_alpha);
+      rowA2 = _mm512_mul_pd(rowA2, reg_alpha);
+      rowA3 = _mm512_mul_pd(rowA3, reg_alpha);
+      rowA4 = _mm512_mul_pd(rowA4, reg_alpha);
+      rowA5 = _mm512_mul_pd(rowA5, reg_alpha);
+      rowA6 = _mm512_mul_pd(rowA6, reg_alpha);
+      rowA7 = _mm512_mul_pd(rowA7, reg_alpha);
+
+       //Load B
+       if( !betaIsZero )
+       {
+        __m512d rowB0 = _mm512_loadu_pd((B + 0 * ldb));
+        __m512d rowB1 = _mm512_loadu_pd((B + 1 * ldb));
+        __m512d rowB2 = _mm512_loadu_pd((B + 2 * ldb));
+        __m512d rowB3 = _mm512_loadu_pd((B + 3 * ldb));
+        __m512d rowB4 = _mm512_loadu_pd((B + 4 * ldb));
+        __m512d rowB5 = _mm512_loadu_pd((B + 5 * ldb));
+        __m512d rowB6 = _mm512_loadu_pd((B + 6 * ldb));
+        __m512d rowB7 = _mm512_loadu_pd((B + 7 * ldb));
+
+        rowB0 = _mm512_add_pd(_mm512_mul_pd(rowB0, reg_beta), rowA0);
+        rowB1 = _mm512_add_pd(_mm512_mul_pd(rowB1, reg_beta), rowA1);
+        rowB2 = _mm512_add_pd(_mm512_mul_pd(rowB2, reg_beta), rowA2);
+        rowB3 = _mm512_add_pd(_mm512_mul_pd(rowB3, reg_beta), rowA3);
+        rowB4 = _mm512_add_pd(_mm512_mul_pd(rowB4, reg_beta), rowA4);
+        rowB5 = _mm512_add_pd(_mm512_mul_pd(rowB5, reg_beta), rowA5);
+        rowB6 = _mm512_add_pd(_mm512_mul_pd(rowB6, reg_beta), rowA6);
+        rowB7 = _mm512_add_pd(_mm512_mul_pd(rowB7, reg_beta), rowA7);
+
+          //Store B
+         _mm512_storeu_pd((B + 0 * ldb), rowB0);
+         _mm512_storeu_pd((B + 1 * ldb), rowB1);
+         _mm512_storeu_pd((B + 2 * ldb), rowB2);
+         _mm512_storeu_pd((B + 3 * ldb), rowB3);
+         _mm512_storeu_pd((B + 4 * ldb), rowB4);
+         _mm512_storeu_pd((B + 5 * ldb), rowB5);
+         _mm512_storeu_pd((B + 6 * ldb), rowB6);
+         _mm512_storeu_pd((B + 7 * ldb), rowB7);
+       } else {
+          // Store B
+        _mm512_storeu_pd((B + 0 * ldb), rowA0);
+        _mm512_storeu_pd((B + 1 * ldb), rowA1);
+        _mm512_storeu_pd((B + 2 * ldb), rowA2);
+        _mm512_storeu_pd((B + 3 * ldb), rowA3);
+        _mm512_storeu_pd((B + 4 * ldb), rowA4);
+        _mm512_storeu_pd((B + 5 * ldb), rowA5);
+        _mm512_storeu_pd((B + 6 * ldb), rowA6);
+        _mm512_storeu_pd((B + 7 * ldb), rowA7);
+       }
+    }
+};
+
+template<>
+void streamingStore<double>( double* out, const double*in ){
+   _mm512_stream_pd(out, _mm512_loadu_pd(in));
+}
+
+#else
 template <int betaIsZero, bool conjA>
 struct micro_kernel<double, betaIsZero, conjA>
 {
@@ -235,6 +343,7 @@ template<>
 void streamingStore<double>( double* out, const double*in ){
    _mm256_stream_pd(out, _mm256_loadu_pd(in));
 }
+#endif
 #else
 template<typename floatType>
 static INLINE void prefetch(const floatType* A, const int lda) { }

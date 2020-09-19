@@ -8,6 +8,10 @@
 #undef REGISTER_BITS 
 #define REGISTER_BITS 128 // ARM
 #endif
+#ifdef HPTT_ARCH_AVX512
+#undef REGISTER_BITS 
+#define REGISTER_BITS 512 // AVX512
+#endif
 
 namespace hptt {
 

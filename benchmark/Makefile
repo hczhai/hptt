@@ -3,7 +3,7 @@ CXX_FLAGS=-O3 -std=c++11
 ifeq ($(CXX),icpc)
 CXX_FLAGS += -qopenmp -xhost 
 else
-ifeq ($(CXX),g++)
+ifneq (,$(findstring g++,$(CXX)))
 CXX_FLAGS += -fopenmp -march=native 
 else
 ifeq ($(CXX),clang++)

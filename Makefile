@@ -4,7 +4,7 @@ INCLUDE_PATH=-I./include/
 ifeq ($(CXX),icpc)
 CXX_FLAGS += -qopenmp -xhost 
 else
-ifeq ($(CXX),g++)
+ifneq (,$(findstring g++,$(CXX)))
 CXX_FLAGS += -fopenmp -march=native 
 else
 ifeq ($(CXX),clang++)
@@ -15,6 +15,9 @@ endif
 
 all: lib/libhptt.so lib/libhptt.a
 
+avx512: 
+	${MAKE} clean 
+	${MAKE} avx5122
 avx: 
 	${MAKE} clean 
 	${MAKE} avx2
@@ -28,6 +31,8 @@ scalar:
 	${MAKE} clean 
 	${MAKE} scalar2
 
+avx5122: CXX_FLAGS+=-mavx -mavx2 -mavx512f -DHPTT_ARCH_AVX -DHPTT_ARCH_AVX512
+avx5122: all
 avx2: CXX_FLAGS+=-mavx -DHPTT_ARCH_AVX
 avx2: all
 arm2: CXX_FLAGS+=-mfpu=neon -DHPTT_ARCH_ARM

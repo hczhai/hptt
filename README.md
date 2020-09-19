@@ -44,6 +44,7 @@ Clone the repository into a desired directory and change to that location:
 
 Now you have several options to build the desired version of the library:
 
+    make avx512
     make avx
     make arm
     make scalar
@@ -51,10 +52,11 @@ Now you have several options to build the desired version of the library:
 Using CMake:
     mkdir build && cd build
     cmake .. -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
-    #Optionally one of [-DENABLE_ARM=ON -DENABLE_AVX=ON -DENABLE_IBM=ON]    
+    #Optionally one of [-DENABLE_ARM=ON -DENABLE_AVX=ON -DENABLE_AVX512=ON -DENABLE_IBM=ON]    
 
 This should create 'libhptt.so' inside the ./lib folder.
 
+Currently avx512 only has kernel for `double` data type.
 
 # Getting Started
 
